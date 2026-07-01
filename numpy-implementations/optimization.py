@@ -58,7 +58,7 @@ def sgd_gabor(phi0: np.ndarray, x: np.ndarray, y: np.ndarray, alpha0: float, bat
     for e in range(n_epochs):
         perm = rng.permutation(x.shape[0])
 
-        for start in range(0, N, batch_size):
+        for start in range(0, x.shape[0], batch_size):
             x_batch = x[perm[start : start + batch_size]]
             y_batch = y[perm[start : start + batch_size]]
             phi = phi - alpha * grad_gabor(phi, x_batch, y_batch)
