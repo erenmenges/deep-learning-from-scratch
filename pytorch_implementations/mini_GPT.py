@@ -7,10 +7,11 @@ torch.manual_seed(0)
 torch.set_num_threads(1)
 
 class TransformerBlock(nn.Module):
-    def __init__(self, D: int, D_q: int, H: int):
+    def __init__(self, D: int, D_q: int, H: int, mask: bool):
         super().__init__()
 
         self.heads = H
+        self.mask = mask
 
         self.W_keys = nn.Parameter(torch.randn(H, D_q, D))
         self.b_keys = nn.Parameter(torch.randn(H, D_q, 1))
@@ -33,7 +34,7 @@ class TransformerBlock(nn.Module):
         params = {"Omega_v": self.W_values, "Omega_q": self.W_queries, "Omega_k": self.W_keys, "Omega_c": self.W_linear_at_end, 
                   "omega_v": self.b_values, "omega_q": self.b_queries, "omega_k": self.b_keys}
         
-        step1 = X + multihead_self_attention(X, params, self.heads, True)
+        step1 = X + multihead_self_attention(X, params, self.heads, self.mask)
 
 
         step2 = step1.permute(0, 2, 1)  ### make it from (B, D, N) to (B, N, D)
@@ -49,14 +50,14 @@ class TransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, K: int, D: int, D_q: int, H: int, V: int, N):
+    def __init__(self, K: int, D: int, D_q: int, H: int, V: int, N: int, mask: bool):
         super().__init__()
         self.embeddings = nn.Parameter(torch.randn(D, V))
         self.positional_encoding = nn.Parameter(torch.randn(D, N))
 
         layers = []
         for _ in range(K):
-            layers.append(TransformerBlock(D, D_q, H))
+            layers.append(TransformerBlock(D, D_q, H, mask))
         
         self.main_layers = nn.Sequential(*layers)
         self.output_head = nn.Linear(in_features=D, out_features=V)
@@ -104,7 +105,7 @@ def make_batch(B, seed):
 
 
 def train_lm():
-    model = Transformer(2, 32, 8, 4, 11, 13)
+    model = Transformer(2, 32, 8, 4, 11, 13, True)
     epochs = 1000
 
     optimizer = torch.optim.Adam(params=model.parameters())
@@ -131,7 +132,7 @@ def train_lm():
 
         optimizer.step()
 
-        if epoch % 250 == 0:
+        if epoch % 100 == 0:
             with torch.no_grad():
                 model.eval()
 
@@ -155,10 +156,11 @@ def lm_logits(model: Transformer, tokens: torch.Tensor) -> torch.Tensor:
 
 
 def greedy_generate(model: Transformer, prompt: torch.Tensor, n_steps: int) -> torch.Tensor:
+    model.eval()
     with torch.no_grad():
         context = torch.clone(prompt)
         for _ in range(n_steps):
             context = torch.column_stack((context, torch.argmax(model(context)[:, :, -1], dim=1)))
         return context
 
-model = train_lm()
+#model = train_lm()
